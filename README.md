@@ -1,51 +1,129 @@
-# 🚀 flutter_init
+# flutter_init
 
-A powerful CLI tool to instantly scaffold a modern Flutter app with your custom architecture and preferred state management:
-**Simple GetX**, **Reactive GetX**, **Provider**, or **Bloc**. 
-Designed for productivity, best practices, and rapid prototyping.
+Scaffold a production-ready Flutter project in minutes with structure, dependencies, and state management templates.
 
----
+## Features
 
-## ✨ Features
+- Supports `simple_getx`, `reactive_getx`, `provider`, and `bloc`
+- Interactive mode for easy setup and non-interactive flags for CI/script usage
+- Config-file driven setup via `flutter_init.config.json` or `--config`
+- Built-in `doctor` command for Flutter/Dart environment checks
+- Adds reusable template architecture and package import replacement
+- Generates quality starter files:
+  - `analysis_options.yaml`
+  - `.github/workflows/ci.yml`
+  - `assets/images/` and linked pubspec assets
+- Generates new features after initialization:
+  - `flutter-init generate module <name>`
+  - `flutter-init generate screen <name>`
 
-- 📁 Custom folder structure with best practices
-- 🔧 Supports 3 state management options:
-  -  ✅ **Simple GetX**
-  -  🔄 **Reactive GetX**
-  -  🧩 **Provider**
-  -  ⚙️ **Bloc + Equatable**
-- 📦 Auto-installs essential dependencies:
-  -  **Common:** shared_preferences, dynamicutils, http, connectivity_plus, file_picker, cached_network_image, flutter_offline, image_picker
-  -  **GetX:** get, get_storage
-  -  **Provider:** provider, flutter_localization
-  -  **Bloc:** `flutter_bloc`, `equatable`
-- 🔁 Handles **package import replacement** automatically
-- 📂 Creates `assets/images/` and auto-links it in `pubspec.yaml`
-- 🌐 Adds **common API handler** class with:
-  - `GET`, `POST`, `PUT`, `DELETE`, and `FormData` methods
-  - Reusable and customizable HTTP logic
-- 🧩 Generates reusable structure in:
-  - `repository/` – Centralized API layer
-  - `controller/` or `bloc/` – Clean integration with controller logic
-- 📡 Handles offline support with:
-  - `OfflineBuilder` for no-network banners
-  - Optional offline full screen layout (pre-coded)
-
----
-
-## 📦 Installation
-
-Install the CLI tool globally using npm:
+## Installation
 
 ```bash
 npm install -g flutter_init
 ```
 
----
+## Commands
 
-## 🚀 Usage
-After installation, simply run:
+### Initialize a project
+
+Interactive:
 
 ```bash
-flutter-init
+flutter-init init
+```
+
+Non-interactive:
+
+```bash
+flutter-init init my_app --state=bloc --yes
+```
+
+Dry-run (safe test, no files changed):
+
+```bash
+flutter-init init demo_app --state=provider --yes --dry-run --skip-doctor
+```
+
+### Generate module/screen in an existing Flutter app
+
+From inside project root:
+
+```bash
+flutter-init generate module user
+flutter-init generate screen checkout
+```
+
+With explicit project path:
+
+```bash
+flutter-init generate module inventory --project ./my_app
+```
+
+### Environment doctor
+
+```bash
+flutter-init doctor
+```
+
+## Config File
+
+Create `flutter_init.config.json`:
+
+```json
+{
+  "init": {
+    "projectName": "my_app",
+    "state": "reactive_getx",
+    "yes": true,
+    "skipDoctor": false,
+    "dryRun": false
+  }
+}
+```
+
+Then run:
+
+```bash
+flutter-init init
+```
+
+## Testing This Package
+
+### 1) Run unit tests (Node CLI logic)
+
+```bash
+npm test
+```
+
+### 2) Validate CLI help and doctor
+
+```bash
+node cli.js --help
+node cli.js doctor
+```
+
+### 3) Validate dry-run init flow
+
+```bash
+node cli.js init sample_app --state=simple_getx --yes --dry-run --skip-doctor
+```
+
+### 4) End-to-end local install test
+
+```bash
+npm pack
+npm install -g ./flutter_init-*.tgz
+flutter-init init my_real_app --state=bloc --yes
+```
+
+### 5) Verify generated Flutter app
+
+Inside generated app:
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter run
 ```

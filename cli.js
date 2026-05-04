@@ -5,14 +5,159 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// Recursively copy a folder
-function copyRecursive(src, dest) {
-  if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+const STATE_CHOICES = {
+  simple_getx: {
+    label: 'Simple Getx',
+    modeFolder: 'with_simple_getx',
+    oldPackageName: 'flutter_standard',
+    stateDeps: ['get']
+  },
+  reactive_getx: {
+    label: 'Reactive Getx',
+    modeFolder: 'with_reactive_getx',
+    oldPackageName: 'flutter_with_reactive_getx',
+    stateDeps: ['get']
+  },
+  provider: {
+    label: 'Provider',
+    modeFolder: 'with_provider',
+    oldPackageName: 'provider_project',
+    stateDeps: ['provider', 'flutter_localization']
+  },
+  bloc: {
+    label: 'Bloc',
+    modeFolder: 'with_bloc',
+    oldPackageName: 'bloc_project',
+    stateDeps: ['flutter_bloc', 'equatable']
+  }
+};
 
-  fs.readdirSync(src, { withFileTypes: true }).forEach(entry => {
+const COMMON_DEPENDENCIES = [
+  'dynamicutils',
+  'image_picker',
+  'shared_preferences',
+  'cached_network_image',
+  'http',
+  'connectivity_plus',
+  'file_picker',
+  'flutter_offline',
+  'get_storage'
+];
+
+function toCamelCase(value) {
+  const parts = slugify(value).split('_').filter(Boolean);
+  return parts
+    .map((segment, index) => (index === 0 ? segment : `${segment[0].toUpperCase()}${segment.slice(1)}`))
+    .join('');
+}
+
+function toPascalCase(value) {
+  return toCamelCase(value).replace(/^./, (char) => char.toUpperCase());
+}
+
+function slugify(input) {
+  return String(input)
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_{2,}/g, '_');
+}
+
+function isValidFlutterProjectName(name) {
+  return /^[a-z][a-z0-9_]*$/.test(name);
+}
+
+function parseArgs(rawArgs) {
+  const result = { _: [], flags: {} };
+  for (let index = 0; index < rawArgs.length; index += 1) {
+    const token = rawArgs[index];
+    if (!token.startsWith('--')) {
+      result._.push(token);
+      continue;
+    }
+    const clean = token.slice(2);
+    const equalIndex = clean.indexOf('=');
+    if (equalIndex >= 0) {
+      const key = clean.slice(0, equalIndex);
+      const value = clean.slice(equalIndex + 1);
+      result.flags[key] = value;
+      continue;
+    }
+    const nextToken = rawArgs[index + 1];
+    if (!nextToken || nextToken.startsWith('--')) {
+      result.flags[clean] = true;
+      continue;
+    }
+    result.flags[clean] = nextToken;
+    index += 1;
+  }
+  return result;
+}
+
+function boolFlag(value, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'n'].includes(normalized)) return false;
+  return fallback;
+}
+
+function printHelp() {
+  console.log(`
+flutter-init commands:
+  flutter-init init [projectName] [--state simple_getx|reactive_getx|provider|bloc] [--yes] [--dry-run] [--skip-doctor] [--config path]
+  flutter-init generate module <name> [--project path] [--state ...]
+  flutter-init generate screen <name> [--project path] [--state ...]
+  flutter-init doctor
+
+Examples:
+  flutter-init init my_app --state=bloc --yes
+  flutter-init init --config flutter_init.config.json
+  flutter-init generate module user --project ./my_app --state provider
+`);
+}
+
+function getConfigPath(flags) {
+  if (typeof flags.config === 'string') return path.resolve(process.cwd(), flags.config);
+  const candidates = ['flutter_init.config.json', 'flutter_init.config.js'];
+  for (const candidate of candidates) {
+    const fullPath = path.join(process.cwd(), candidate);
+    if (fs.existsSync(fullPath)) return fullPath;
+  }
+  return null;
+}
+
+function loadConfig(flags) {
+  const configPath = getConfigPath(flags);
+  if (!configPath) return {};
+  if (configPath.endsWith('.js')) {
+    // eslint-disable-next-line global-require, import/no-dynamic-require
+    return require(configPath);
+  }
+  return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+}
+
+function resolveStateKey(input) {
+  if (!input) return null;
+  const normalized = slugify(input).replace(/^with_/, '');
+  if (STATE_CHOICES[normalized]) return normalized;
+  if (normalized === 'simple_getx' || normalized === 'simple_getx_getx') return 'simple_getx';
+  if (normalized === 'reactive_getx' || normalized === 'reactive') return 'reactive_getx';
+  return null;
+}
+
+function ensureDirectory(targetPath) {
+  if (!fs.existsSync(targetPath)) {
+    fs.mkdirSync(targetPath, { recursive: true });
+  }
+}
+
+function copyRecursive(src, dest) {
+  ensureDirectory(dest);
+  fs.readdirSync(src, { withFileTypes: true }).forEach((entry) => {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
-
     if (entry.isDirectory()) {
       copyRecursive(srcPath, destPath);
     } else {
@@ -21,112 +166,50 @@ function copyRecursive(src, dest) {
   });
 }
 
-function replacePackageImports(libPath, oldName, newName) {
-  const dartFiles = fs.readdirSync(libPath, { recursive: true })
-    .filter(file => file.endsWith('.dart'));
-
-  dartFiles.forEach(file => {
-    const fullPath = path.join(libPath, file);
-    let content = fs.readFileSync(fullPath, 'utf-8');
-    const updated = content.replaceAll(`package:${oldName}/`, `package:${newName}/`);
-    fs.writeFileSync(fullPath, updated, 'utf-8');
+function walkFiles(rootDir, extension = '.dart') {
+  const result = [];
+  const entries = fs.readdirSync(rootDir, { withFileTypes: true });
+  entries.forEach((entry) => {
+    const fullPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      result.push(...walkFiles(fullPath, extension));
+    } else if (fullPath.endsWith(extension)) {
+      result.push(fullPath);
+    }
   });
-
-  console.log(`🔧 Updated all import paths from "${oldName}" to "${newName}".`);
+  return result;
 }
 
-function addDependencies(projectPath, dependencies) {
-  const originalCwd = process.cwd();
-  process.chdir(projectPath); // Switch to the new project's directory
+function replacePackageImports(libPath, oldName, newName) {
+  const dartFiles = walkFiles(libPath, '.dart');
+  dartFiles.forEach((filePath) => {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const updated = content.replaceAll(`package:${oldName}/`, `package:${newName}/`);
+    fs.writeFileSync(filePath, updated, 'utf-8');
+  });
+  console.log(`🔧 Updated import paths from "${oldName}" to "${newName}".`);
+}
 
+function runCommand(command, options = {}) {
+  if (options.dryRun) {
+    console.log(`🧪 [dry-run] ${command}`);
+    return '';
+  }
+  return execSync(command, { stdio: options.stdio || 'inherit', encoding: options.encoding || 'utf8' });
+}
+
+function addDependencies(projectPath, dependencies, options = {}) {
+  const originalCwd = process.cwd();
+  process.chdir(projectPath);
   try {
-    dependencies.forEach(dep => {
-      console.log(`📦 Adding dependency: ${dep}`);
-      execSync(`flutter pub add ${dep}`, { stdio: 'inherit' });
+    dependencies.forEach((dependency) => {
+      console.log(`📦 Adding dependency: ${dependency}`);
+      runCommand(`flutter pub add ${dependency}`, options);
     });
   } finally {
-    process.chdir(originalCwd); // Revert back to original path
+    process.chdir(originalCwd);
   }
 }
-
-/// project name validation
-function slugify(input) {
-  return input
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, '_')   // Replace illegal characters with underscores
-    .replace(/^_+|_+$/g, '')        // Trim leading/trailing underscores
-    .replace(/_{2,}/g, '_');        // Collapse multiple underscores
-}
-
-function isValidFlutterProjectName(name) {
-  return /^[a-z][a-z0-9_]*$/.test(name);
-}
-
-
-// Project name validation helpers
-function slugify(input) {
-  return input
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, '_')   // Replace illegal characters with underscores
-    .replace(/^_+|_+$/g, '')        // Trim leading/trailing underscores
-    .replace(/_{2,}/g, '_');        // Collapse multiple underscores
-}
-
-function isValidFlutterProjectName(name) {
-  return /^[a-z][a-z0-9_]*$/.test(name);
-}
-
-async function promptForProjectDetails() {
-  let projectNameRaw = '';
-  let projectName = '';
-
-  while (true) {
-    const { projectNameInput } = await inquirer.prompt([
-      {
-        name: 'projectNameInput',
-        message: 'Enter your Flutter project name:',
-        validate: input => {
-          if (!input.trim()) return 'Project name cannot be empty.';
-          const sanitized = slugify(input);
-          if (!isValidFlutterProjectName(sanitized)) {
-            return 'Invalid name. Must start with a letter and contain only lowercase letters, numbers, and underscores.';
-          }
-          return true;
-        }
-      }
-    ]);
-
-    projectNameRaw = projectNameInput;
-    projectName = slugify(projectNameRaw);
-
-    if (projectName !== projectNameRaw) {
-      const { confirm } = await inquirer.prompt([
-        {
-          type: 'confirm',
-          name: 'confirm',
-          message: `Use "${projectName}" as your sanitized project name?`,
-          default: true
-        }
-      ]);
-
-      if (confirm) break;
-    } else {
-      break;
-    }
-  }
-
-  const { stateManagement } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'stateManagement',
-      message: 'Choose state management type:',
-      choices: ['Simple Getx', 'Reactive Getx', 'Provider', 'Bloc']
-    }
-  ]);
-
-  return { projectName, stateManagement };
-}
-
 
 function isCommandAvailable(command) {
   try {
@@ -138,150 +221,356 @@ function isCommandAvailable(command) {
   }
 }
 
-function validateFlutterEnvironment() {
+function validateFlutterEnvironment(options = {}) {
   console.log('🔍 Validating environment...');
-
   if (!isCommandAvailable('flutter')) {
-    console.error('❌ Flutter is not installed or not in your PATH.');
-    console.log('👉 Please install Flutter from https://docs.flutter.dev/get-started/install');
-    process.exit(1);
+    throw new Error('Flutter is not installed or not in your PATH.');
   }
-
   if (!isCommandAvailable('dart')) {
-    console.error('❌ Dart is not installed or not in your PATH.');
-    console.log('👉 Dart is usually bundled with Flutter. Make sure Flutter is properly installed.');
-    process.exit(1);
+    throw new Error('Dart is not installed or not in your PATH.');
   }
-
-  try {
-    const flutterDoctor = execSync('flutter doctor', { encoding: 'utf8' });
-    console.log(flutterDoctor);
-  } catch (error) {
-    console.error('❌ Failed to run `flutter doctor`.');
-    console.log('🛠 Please ensure Flutter is fully installed and configured.');
-    process.exit(1);
-  }
-
+  runCommand('flutter doctor', { ...options, stdio: 'inherit' });
   console.log('✅ Flutter environment looks good!\n');
 }
 
-async function main() {
-  // const { projectName, stateManagement } = await inquirer.prompt([
-  //   {
-  //     name: 'projectName',
-  //     message: 'Enter your Flutter project name:',
-  //     validate: input => !!input || 'Project name cannot be empty.',
-  //   },
-  //   {
-  //     type: 'list',
-  //     name: 'stateManagement',
-  //     message: 'Choose state management type:',
-  //     choices: ['Simple Getx', 'Reactive Getx'],
-  //   }
-  // ]);
-
-  validateFlutterEnvironment();
-  const { projectName, stateManagement } = await promptForProjectDetails();
-
-  // 1. Create the Flutter project
-  console.log(`🚀 Creating Flutter project: ${projectName}`);
-  execSync(`flutter create ${projectName}`, { stdio: 'inherit' });
-
-  // 2. Determine which template to use
-  const modeFolder = stateManagement === 'Reactive Getx' ? 'with_reactive_getx' :
-  stateManagement === 'Provider' ? 'with_provider' :
-  stateManagement === 'Bloc' ? 'with_bloc' :
-  'with_simple_getx';
-  const templatePath = path.join(__dirname, 'lib_template', modeFolder);
-  const destLibPath = path.join(process.cwd(), projectName, 'lib');
-
-  console.log(`📁 Copying ${stateManagement} lib structure...`);
-  copyRecursive(templatePath, destLibPath);
-
-  // 3. Replace imports
-  const oldProjectName = stateManagement === 'Reactive Getx' ? 'flutter_with_reactive_getx' :
-  stateManagement === 'Provider' ? 'provider_project' :
-  stateManagement === 'Bloc' ? 'bloc_project' :
-  'flutter_standard';
-  replacePackageImports(destLibPath, oldProjectName, projectName);
-
-  // 4.1 Create assets/images folder
-  const assetsImagesPath = path.join(process.cwd(), projectName, 'assets', 'images');
-  fs.mkdirSync(assetsImagesPath, { recursive: true });
-  console.log('📁 Created assets/images folder.');
-
-  // 4.2 Update pubspec.yaml to include assets after uses-material-design
-  const pubspecPath = path.join(process.cwd(), projectName, 'pubspec.yaml');
+function updatePubspec(pubspecPath) {
   let pubspec = fs.readFileSync(pubspecPath, 'utf-8');
-
-  // Check if the correct assets path is already present
-  if (!pubspec.includes('  assets:\n    - assets/images/')) {
-    // Regex to match the default commented assets section only
-    const commentedAssetsRegex = /  # To add assets to your application.*?(?:  # .*\n)*  # assets:\n(?:  #.*\n)*/g;
-
-    let updatedPubspec = pubspec;
-
-    if (commentedAssetsRegex.test(pubspec)) {
-      // Replace the whole commented section with our actual assets block
-      updatedPubspec = pubspec.replace(
-        commentedAssetsRegex,
-        '  generate: true\n  assets:\n    - assets/images/\n'
-      );
-      console.log('📝 Commented assets section replaced.');
-    } else {
-      // If commented section not found, just add it below uses-material-design
-      updatedPubspec = pubspec.replace(
-        /  uses-material-design: true\n/,
-        '  uses-material-design: true\n\n  generate: true\n  assets:\n    - assets/images/\n'
-      );
-      console.log('📝 Assets section added below uses-material-design.');
-    }
-
-    fs.writeFileSync(pubspecPath, updatedPubspec, 'utf-8');
-    console.log('✅ Updated pubspec.yaml with assets/images/');
-  } else {
+  if (pubspec.includes('  assets:\n    - assets/images/')) {
     console.log('ℹ️ pubspec.yaml already contains assets/images/');
-  }
-  if (stateManagement === 'Provider') {
-  /// Add l10n.yaml file
-  const l10nPath = path.join(process.cwd(), projectName, 'l10n.yaml');
-
-  const l10nContent = `
-arb-dir: lib/l10n
-template-arb-file: app_en.arb
-output-localization-file: app_localizations.dart
-output-class: AppLocalizations
-synthetic-package: false
-`;
-
-  fs.writeFileSync(l10nPath, l10nContent.trimStart(), 'utf-8');
-  console.log('✅ Created l10n.yaml for localization config.');
-
+    return;
   }
 
-  //4. Adding dependencies
-  let dependencies = [
-    'get_storage',
-    'dynamicutils',
-    'image_picker',
-    'shared_preferences',
-    'cached_network_image',
-    'http',
-    'connectivity_plus',
-    'file_picker',
-    'flutter_offline',
-  ];
-  
-  if (stateManagement === 'Provider') {
-    dependencies.push('provider', 'flutter_localization');
-  } else if (stateManagement === 'Bloc') {
-    dependencies.push('flutter_bloc', 'equatable');
+  const commentedAssetsRegex = /  # To add assets to your application.*?(?:  # .*\n)*  # assets:\n(?:  #.*\n)*/g;
+  if (commentedAssetsRegex.test(pubspec)) {
+    pubspec = pubspec.replace(commentedAssetsRegex, '  generate: true\n  assets:\n    - assets/images/\n');
+    console.log('📝 Replaced commented assets section.');
   } else {
-    dependencies.push('get', 'get_storage'); // Only GetX types
+    pubspec = pubspec.replace(
+      /  uses-material-design: true\n/,
+      '  uses-material-design: true\n\n  generate: true\n  assets:\n    - assets/images/\n'
+    );
+    console.log('📝 Added assets section below uses-material-design.');
   }
-  addDependencies(path.join(process.cwd(), projectName), dependencies);
-
-  console.log(`✅ Flutter project "${projectName}" with ${stateManagement} setup is ready!`);
+  fs.writeFileSync(pubspecPath, pubspec, 'utf-8');
+  console.log('✅ Updated pubspec.yaml with assets/images/.');
 }
 
-main();
+function createL10nConfig(projectPath) {
+  const l10nPath = path.join(projectPath, 'l10n.yaml');
+  const l10nContent = [
+    'arb-dir: lib/l10n',
+    'template-arb-file: app_en.arb',
+    'output-localization-file: app_localizations.dart',
+    'output-class: AppLocalizations',
+    'synthetic-package: false',
+    ''
+  ].join('\n');
+  fs.writeFileSync(l10nPath, l10nContent, 'utf-8');
+  console.log('✅ Created l10n.yaml.');
+}
+
+function createQualityFiles(projectPath) {
+  const analysisOptionsPath = path.join(projectPath, 'analysis_options.yaml');
+  if (!fs.existsSync(analysisOptionsPath)) {
+    fs.writeFileSync(
+      analysisOptionsPath,
+      [
+        'include: package:flutter_lints/flutter.yaml',
+        '',
+        'linter:',
+        '  rules:',
+        '    prefer_single_quotes: true',
+        '    avoid_print: false',
+        ''
+      ].join('\n'),
+      'utf-8'
+    );
+  }
+
+  const githubWorkflowPath = path.join(projectPath, '.github', 'workflows', 'ci.yml');
+  ensureDirectory(path.dirname(githubWorkflowPath));
+  if (!fs.existsSync(githubWorkflowPath)) {
+    fs.writeFileSync(
+      githubWorkflowPath,
+      [
+        'name: Flutter CI',
+        '',
+        'on:',
+        '  push:',
+        '    branches: [ main ]',
+        '  pull_request:',
+        '    branches: [ main ]',
+        '',
+        'jobs:',
+        '  analyze_and_test:',
+        '    runs-on: ubuntu-latest',
+        '    steps:',
+        '      - uses: actions/checkout@v4',
+        '      - uses: subosito/flutter-action@v2',
+        '        with:',
+        '          channel: stable',
+        '      - run: flutter pub get',
+        '      - run: flutter analyze',
+        '      - run: flutter test',
+        ''
+      ].join('\n'),
+      'utf-8'
+    );
+  }
+}
+
+async function promptForProjectDetails(defaults = {}) {
+  let projectName = defaults.projectName || '';
+
+  if (!projectName) {
+    while (true) {
+      const { projectNameInput } = await inquirer.prompt([
+        {
+          name: 'projectNameInput',
+          message: 'Enter your Flutter project name:',
+          validate: (input) => {
+            if (!input.trim()) return 'Project name cannot be empty.';
+            const sanitized = slugify(input);
+            if (!isValidFlutterProjectName(sanitized)) {
+              return 'Name must start with a letter and contain only lowercase letters, numbers, and underscores.';
+            }
+            return true;
+          }
+        }
+      ]);
+      const sanitized = slugify(projectNameInput);
+      if (sanitized !== projectNameInput) {
+        const { confirm } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'confirm',
+            message: `Use "${sanitized}" as your project name?`,
+            default: true
+          }
+        ]);
+        if (!confirm) continue;
+      }
+      projectName = sanitized;
+      break;
+    }
+  }
+
+  const stateOptions = Object.values(STATE_CHOICES).map((state) => state.label);
+  let stateLabel = defaults.stateLabel || '';
+  if (!stateLabel) {
+    const response = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'stateManagement',
+        message: 'Choose state management type:',
+        choices: stateOptions
+      }
+    ]);
+    stateLabel = response.stateManagement;
+  }
+
+  return { projectName, stateLabel };
+}
+
+function resolveStateFromLabelOrKey(value) {
+  const fromKey = resolveStateKey(value);
+  if (fromKey) return fromKey;
+  const lowered = String(value || '').toLowerCase();
+  const entry = Object.entries(STATE_CHOICES).find(([, state]) => state.label.toLowerCase() === lowered);
+  return entry ? entry[0] : null;
+}
+
+function resolveInitOptions(parsed) {
+  const config = loadConfig(parsed.flags);
+  const configInit = config.init || {};
+  const projectNameInput = parsed._[1] || parsed.flags.project || configInit.projectName;
+  const projectName = projectNameInput ? slugify(projectNameInput) : '';
+  const stateKey = resolveStateFromLabelOrKey(parsed.flags.state || configInit.state || 'simple_getx');
+  if (!stateKey) {
+    throw new Error('Invalid state management. Use simple_getx, reactive_getx, provider, or bloc.');
+  }
+  return {
+    projectName,
+    stateKey,
+    yes: boolFlag(parsed.flags.yes, boolFlag(configInit.yes, false)),
+    dryRun: boolFlag(parsed.flags['dry-run'], boolFlag(configInit.dryRun, false)),
+    skipDoctor: boolFlag(parsed.flags['skip-doctor'], boolFlag(configInit.skipDoctor, false))
+  };
+}
+
+function renderModuleTemplate(featureName) {
+  const pascal = toPascalCase(featureName);
+  return `import 'package:flutter/material.dart';
+
+class ${pascal}View extends StatelessWidget {
+  const ${pascal}View({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Text('${pascal} module'),
+      ),
+    );
+  }
+}
+`;
+}
+
+function generateModule(targetLibPath, featureName) {
+  const folderName = slugify(featureName);
+  const modulePath = path.join(targetLibPath, 'module', folderName);
+  ensureDirectory(modulePath);
+  const viewPath = path.join(modulePath, `${folderName}_view.dart`);
+  if (!fs.existsSync(viewPath)) {
+    fs.writeFileSync(viewPath, renderModuleTemplate(folderName), 'utf-8');
+  }
+  console.log(`✅ Module generated at ${path.relative(process.cwd(), modulePath)}`);
+}
+
+function generateScreen(targetLibPath, screenName) {
+  const folderName = slugify(screenName);
+  const viewFolderPath = path.join(targetLibPath, 'view', folderName);
+  ensureDirectory(viewFolderPath);
+  const viewPath = path.join(viewFolderPath, `${folderName}_view.dart`);
+  if (!fs.existsSync(viewPath)) {
+    fs.writeFileSync(viewPath, renderModuleTemplate(folderName), 'utf-8');
+  }
+  console.log(`✅ Screen generated at ${path.relative(process.cwd(), viewPath)}`);
+}
+
+function detectProjectLibPath(projectPath) {
+  const libPath = path.join(projectPath, 'lib');
+  if (!fs.existsSync(libPath)) {
+    throw new Error(`No lib folder found at ${projectPath}. Use --project to point to your Flutter app.`);
+  }
+  return libPath;
+}
+
+function runDoctor() {
+  try {
+    validateFlutterEnvironment();
+    return 0;
+  } catch (error) {
+    console.error(`❌ ${error.message}`);
+    console.log('👉 Install guide: https://docs.flutter.dev/get-started/install');
+    return 1;
+  }
+}
+
+async function runInit(parsed) {
+  const options = resolveInitOptions(parsed);
+  if (!options.skipDoctor) {
+    validateFlutterEnvironment({ dryRun: options.dryRun });
+  }
+
+  let projectName = options.projectName;
+  let stateKey = options.stateKey;
+
+  if (!options.yes || !projectName) {
+    const details = await promptForProjectDetails({
+      projectName,
+      stateLabel: STATE_CHOICES[stateKey].label
+    });
+    projectName = details.projectName;
+    stateKey = resolveStateFromLabelOrKey(details.stateLabel);
+  }
+
+  if (!isValidFlutterProjectName(projectName)) {
+    throw new Error(`Invalid Flutter project name "${projectName}".`);
+  }
+
+  const state = STATE_CHOICES[stateKey];
+  console.log(`🚀 Creating Flutter project: ${projectName}`);
+  runCommand(`flutter create ${projectName}`, { dryRun: options.dryRun });
+
+  const projectPath = path.join(process.cwd(), projectName);
+  const templatePath = path.join(__dirname, 'lib_template', state.modeFolder);
+  const destLibPath = path.join(projectPath, 'lib');
+
+  if (!options.dryRun) {
+    copyRecursive(templatePath, destLibPath);
+    replacePackageImports(destLibPath, state.oldPackageName, projectName);
+    ensureDirectory(path.join(projectPath, 'assets', 'images'));
+    updatePubspec(path.join(projectPath, 'pubspec.yaml'));
+    if (stateKey === 'provider') createL10nConfig(projectPath);
+    createQualityFiles(projectPath);
+    const dependencies = [...new Set([...COMMON_DEPENDENCIES, ...state.stateDeps])];
+    addDependencies(projectPath, dependencies, options);
+  } else {
+    console.log(`🧪 [dry-run] would copy template ${state.modeFolder}`);
+    console.log('🧪 [dry-run] would update pubspec.yaml, create assets/images, and install dependencies');
+  }
+
+  console.log(`✅ Flutter project "${projectName}" with ${state.label} setup is ready.`);
+}
+
+function runGenerate(parsed) {
+  const kind = parsed._[1];
+  const name = parsed._[2];
+  if (!kind || !name) {
+    throw new Error('Usage: flutter-init generate <module|screen> <name> [--project path]');
+  }
+  const projectPath = path.resolve(process.cwd(), parsed.flags.project || '.');
+  const libPath = detectProjectLibPath(projectPath);
+  if (kind === 'module') {
+    generateModule(libPath, name);
+    return;
+  }
+  if (kind === 'screen') {
+    generateScreen(libPath, name);
+    return;
+  }
+  throw new Error(`Unknown generate target "${kind}". Use module or screen.`);
+}
+
+async function main() {
+  const parsed = parseArgs(process.argv.slice(2));
+  if (parsed.flags.help || parsed.flags.h) {
+    printHelp();
+    return;
+  }
+  const command = parsed._[0] || 'init';
+
+  try {
+    if (command === '--help' || command === '-h' || command === 'help') {
+      printHelp();
+      return;
+    }
+    if (command === 'doctor') {
+      process.exitCode = runDoctor();
+      return;
+    }
+    if (command === 'generate') {
+      runGenerate(parsed);
+      return;
+    }
+    if (command === 'init') {
+      await runInit(parsed);
+      return;
+    }
+    if (!command.startsWith('-')) {
+      parsed._.unshift('init');
+      await runInit(parsed);
+      return;
+    }
+    printHelp();
+    process.exitCode = 1;
+  } catch (error) {
+    console.error(`❌ ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  parseArgs,
+  slugify,
+  isValidFlutterProjectName,
+  resolveStateKey,
+  toCamelCase,
+  toPascalCase
+};
