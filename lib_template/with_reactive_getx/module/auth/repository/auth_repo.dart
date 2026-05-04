@@ -1,0 +1,37 @@
+
+import 'dart:convert';
+
+import 'package:flutter_with_reactive_getx/services/api_end_points.dart';
+import 'package:flutter_with_reactive_getx/services/http_handler.dart';
+
+class AuthRepo{
+
+  /// login Api
+  static Future login({required Map<String, dynamic> body}) async {
+    await HttpHandler.postHttpMethod(url: APIEndPoints.loginAPIUrl, data: body).then((value) {
+      if (value['error'] == null) {
+        var jsonMap = json.decode(value['body']);
+        return jsonMap;
+      } else if (value['error'] == "No network available"){
+        return null;
+      } else {
+        return null;
+      }
+    });
+  }
+
+  /// get profile Api
+  static Future getProfile() async {
+    await HttpHandler.getHttpMethod(url: APIEndPoints.getProfileUrl).then((value) {
+      if (value['error'] == null) {
+        var jsonMap = json.decode(value['body']);
+        return jsonMap;
+      } else if (value['error'] == "No network available"){
+        return null;
+      } else {
+
+        return null;
+      }
+    });
+  }
+}

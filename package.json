@@ -1,0 +1,33 @@
+{
+  "name": "flutter_init",
+  "version": "1.0.42",
+  "main": "cli.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Your Name Nilesh",
+  "license": "MIT",
+  "description": "A CLI tool to scaffold a new Flutter project with custom lib structure using GetX state management. Install globally and run with: flutter-init",
+  "bin": {
+    "flutter-init": "./cli.js"
+  },
+  "keywords": [
+    "flutter",
+    "flutter-init",
+    "flutter-cli",
+    "getx",
+    "provider",
+    "bloc",
+    "flutter_bloc",
+    "equatable",
+    "boilerplate",
+    "scaffold",
+    "starter-template",
+    "flutter-architecture",
+    "mobile",
+    "dart"
+  ],
+  "dependencies": {
+    "inquirer": "^8.2.6"
+  }
+}

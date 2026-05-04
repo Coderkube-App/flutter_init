@@ -1,0 +1,8 @@
+{
+"@@locale": "en",
+"title": "Hello",
+"login": "Login",
+"logout": "Logout",
+"no_internet_connection": "No internet connection",
+"inter": "inter"
+}
