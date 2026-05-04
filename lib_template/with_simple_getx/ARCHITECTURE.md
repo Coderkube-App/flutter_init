@@ -1,7 +1,7 @@
 Simple GetX template baseline:
 
 - Existing folders remain for compatibility (`controller`, `view`, `repositories`, etc.).
-- `flutter-init` now also creates standard folders in generated apps:
+- `flutter_create` now also creates standard folders in generated apps:
   - `core/constants`, `core/localization`, `core/network`, `core/services`,
   - `core/storage`, `core/theme`, `core/utils`, `core/widgets`,
   - `data/models`, `data/providers`, `data/repositories`,

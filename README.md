@@ -1,4 +1,4 @@
-# flutter_init
+# flutter_create_cli
 
 Scaffold a production-ready Flutter project in minutes with structure, dependencies, and state management templates.
 
@@ -6,7 +6,7 @@ Scaffold a production-ready Flutter project in minutes with structure, dependenc
 
 - Supports `simple_getx`, `reactive_getx`, `provider`, and `bloc`
 - Interactive mode for easy setup and non-interactive flags for CI/script usage
-- Config-file driven setup via `flutter_init.config.json` or `--config`
+- Config-file driven setup via `flutter_create.config.json` or `--config`
 - Built-in `doctor` command for Flutter/Dart environment checks
 - Adds reusable template architecture and package import replacement
 - Generates quality starter files:
@@ -14,13 +14,13 @@ Scaffold a production-ready Flutter project in minutes with structure, dependenc
   - `.github/workflows/ci.yml`
   - `assets/images/` and linked pubspec assets
 - Generates new features after initialization:
-  - `flutter-init generate module <name>`
-  - `flutter-init generate screen <name>`
+  - `flutter_create generate module <name>`
+  - `flutter_create generate screen <name>`
 
 ## Installation
 
 ```bash
-npm install -g flutter_init
+npm install -g flutter_create_cli
 ```
 
 ## Commands
@@ -30,19 +30,19 @@ npm install -g flutter_init
 Interactive:
 
 ```bash
-flutter-init init
+flutter_create init
 ```
 
 Non-interactive:
 
 ```bash
-flutter-init init my_app --state=bloc --yes
+flutter_create init my_app --state=bloc --yes
 ```
 
 Dry-run (safe test, no files changed):
 
 ```bash
-flutter-init init demo_app --state=provider --yes --dry-run --skip-doctor
+flutter_create init demo_app --state=provider --yes --dry-run --skip-doctor
 ```
 
 ### Generate module/screen in an existing Flutter app
@@ -50,25 +50,25 @@ flutter-init init demo_app --state=provider --yes --dry-run --skip-doctor
 From inside project root:
 
 ```bash
-flutter-init generate module user
-flutter-init generate screen checkout
+flutter_create generate module user
+flutter_create generate screen checkout
 ```
 
 With explicit project path:
 
 ```bash
-flutter-init generate module inventory --project ./my_app
+flutter_create generate module inventory --project ./my_app
 ```
 
 ### Environment doctor
 
 ```bash
-flutter-init doctor
+flutter_create doctor
 ```
 
 ## Config File
 
-Create `flutter_init.config.json`:
+Create `flutter_create.config.json`:
 
 ```json
 {
@@ -85,7 +85,7 @@ Create `flutter_init.config.json`:
 Then run:
 
 ```bash
-flutter-init init
+flutter_create init
 ```
 
 ## Testing This Package
@@ -113,8 +113,8 @@ node cli.js init sample_app --state=simple_getx --yes --dry-run --skip-doctor
 
 ```bash
 npm pack
-npm install -g ./flutter_init-*.tgz
-flutter-init init my_real_app --state=bloc --yes
+npm install -g ./flutter_create_cli-*.tgz
+flutter_create init my_real_app --state=bloc --yes
 ```
 
 ### 5) Verify generated Flutter app
@@ -127,3 +127,57 @@ flutter analyze
 flutter test
 flutter run
 ```
+
+## Publish To npm
+
+Use these steps to publish `flutter_create_cli` as a public package.
+
+### 1) Authenticate with the correct npm account
+
+```bash
+npm logout
+npm login
+npm whoami
+```
+
+### 2) Confirm package metadata
+
+```bash
+node -p "const p=require('./package.json'); p.name + '@' + p.version"
+```
+
+### 3) Optional preflight checks
+
+```bash
+npm test
+npm pack
+```
+
+### 4) Publish
+
+```bash
+npm publish --access public
+```
+
+### 5) Verify published version
+
+```bash
+npm view flutter_create_cli version
+```
+
+### Install and use after publish
+
+```bash
+npm install -g flutter_create_cli
+flutter_create init
+```
+
+### If you get E403 (2FA/token required)
+
+If npm shows:
+`Two-factor authentication or granular access token with bypass 2fa enabled is required`
+
+then either:
+
+- publish with OTP prompt after `npm login`, or
+- use a granular access token with publish permission and 2FA bypass enabled.

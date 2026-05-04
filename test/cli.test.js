@@ -17,14 +17,14 @@ test('parseArgs supports command, positionals, and key=value flags', () => {
     '--state=bloc',
     '--yes',
     '--config',
-    'flutter_init.config.json'
+    'flutter_create.config.json'
   ]);
 
   assert.equal(parsed._[0], 'init');
   assert.equal(parsed._[1], 'my_app');
   assert.equal(parsed.flags.state, 'bloc');
   assert.equal(parsed.flags.yes, true);
-  assert.equal(parsed.flags.config, 'flutter_init.config.json');
+  assert.equal(parsed.flags.config, 'flutter_create.config.json');
 });
 
 test('slugify converts human names to flutter-safe names', () => {

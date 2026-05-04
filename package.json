@@ -1,19 +1,19 @@
 {
-  "name": "flutter_init",
-  "version": "1.1.1",
+  "name": "flutter_create_cli",
+  "version": "1.0.0",
   "main": "cli.js",
   "scripts": {
     "test": "node --test"
   },
-  "author": "Your Name Nilesh",
+  "author": "Your Name Coderkube",
   "license": "MIT",
   "description": "A CLI tool to scaffold production-ready Flutter projects with flexible architecture choices and generators.",
   "bin": {
-    "flutter-init": "./cli.js"
+    "flutter_create": "./cli.js"
   },
   "keywords": [
     "flutter",
-    "flutter-init",
+    "flutter_create",
     "flutter-cli",
     "getx",
     "provider",

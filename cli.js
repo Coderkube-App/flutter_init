@@ -105,22 +105,22 @@ function boolFlag(value, fallback = false) {
 
 function printHelp() {
   console.log(`
-flutter-init commands:
-  flutter-init init [projectName] [--state simple_getx|reactive_getx|provider|bloc] [--yes] [--dry-run] [--skip-doctor] [--config path]
-  flutter-init generate module <name> [--project path] [--state ...]
-  flutter-init generate screen <name> [--project path] [--state ...]
-  flutter-init doctor
+flutter_create commands:
+  flutter_create init [projectName] [--state simple_getx|reactive_getx|provider|bloc] [--yes] [--dry-run] [--skip-doctor] [--config path]
+  flutter_create generate module <name> [--project path] [--state ...]
+  flutter_create generate screen <name> [--project path] [--state ...]
+  flutter_create doctor
 
 Examples:
-  flutter-init init my_app --state=bloc --yes
-  flutter-init init --config flutter_init.config.json
-  flutter-init generate module user --project ./my_app --state provider
+  flutter_create init my_app --state=bloc --yes
+  flutter_create init --config flutter_create.config.json
+  flutter_create generate module user --project ./my_app --state provider
 `);
 }
 
 function getConfigPath(flags) {
   if (typeof flags.config === 'string') return path.resolve(process.cwd(), flags.config);
-  const candidates = ['flutter_init.config.json', 'flutter_init.config.js'];
+  const candidates = ['flutter_create.config.json', 'flutter_create.config.js'];
   for (const candidate of candidates) {
     const fullPath = path.join(process.cwd(), candidate);
     if (fs.existsSync(fullPath)) return fullPath;
@@ -410,6 +410,7 @@ function resolveInitOptions(parsed) {
   const configInit = config.init || {};
   const projectNameInput = parsed._[1] || parsed.flags.project || configInit.projectName;
   const projectName = projectNameInput ? slugify(projectNameInput) : '';
+  const hasStateInput = Boolean(parsed.flags.state || configInit.state);
   const stateKey = resolveStateFromLabelOrKey(parsed.flags.state || configInit.state || 'simple_getx');
   if (!stateKey) {
     throw new Error('Invalid state management. Use simple_getx, reactive_getx, provider, or bloc.');
@@ -417,6 +418,7 @@ function resolveInitOptions(parsed) {
   return {
     projectName,
     stateKey,
+    hasStateInput,
     yes: boolFlag(parsed.flags.yes, boolFlag(configInit.yes, false)),
     dryRun: boolFlag(parsed.flags['dry-run'], boolFlag(configInit.dryRun, false)),
     skipDoctor: boolFlag(parsed.flags['skip-doctor'], boolFlag(configInit.skipDoctor, false))
@@ -497,7 +499,7 @@ async function runInit(parsed) {
   if (!options.yes || !projectName) {
     const details = await promptForProjectDetails({
       projectName,
-      stateLabel: STATE_CHOICES[stateKey].label
+      stateLabel: options.hasStateInput ? STATE_CHOICES[stateKey].label : ''
     });
     projectName = details.projectName;
     stateKey = resolveStateFromLabelOrKey(details.stateLabel);
@@ -537,7 +539,7 @@ function runGenerate(parsed) {
   const kind = parsed._[1];
   const name = parsed._[2];
   if (!kind || !name) {
-    throw new Error('Usage: flutter-init generate <module|screen> <name> [--project path]');
+    throw new Error('Usage: flutter_create generate <module|screen> <name> [--project path]');
   }
   const projectPath = path.resolve(process.cwd(), parsed.flags.project || '.');
   const libPath = detectProjectLibPath(projectPath);
