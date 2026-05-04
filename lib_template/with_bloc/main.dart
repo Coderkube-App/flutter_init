@@ -4,6 +4,7 @@ import 'package:bloc_project/config/app_colors.dart';
 import 'package:bloc_project/module/auth/auth_bloc/auth_bloc.dart';
 import 'package:bloc_project/module/auth/repository/auth_repo.dart';
 import 'package:bloc_project/module/home/home_bloc/home_bloc.dart';
+import 'package:bloc_project/module/profile/profile_bloc/profile_bloc.dart';
 import 'package:bloc_project/module/splash/splash_bloc/splash_bloc.dart';
 import 'package:bloc_project/route/app_route.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'package:get_storage/get_storage.dart';
 
 import 'module/auth/view/log_in/login_view.dart';
 import 'module/home/view/home_view.dart';
+import 'module/profile/view/profile_view.dart';
 import 'module/splash/view/splash_view.dart';
 
 Future<void> main() async {
@@ -46,6 +48,9 @@ class MyApp extends StatelessWidget {
           BlocProvider(
             create: (context) => HomeBloc(),
           ),
+          BlocProvider(
+            create: (context) => ProfileBloc(),
+          ),
         ],
         child: MaterialApp(
           title: 'Flutter Project Using Bloc',
@@ -57,6 +62,7 @@ class MyApp extends StatelessWidget {
             AppRoutes.splash: (_) => const SplashView(),
             AppRoutes.login: (_) => const LoginView(),
             AppRoutes.home: (_) => const HomeView(),
+            AppRoutes.profile: (_) => const ProfileView(),
           },
           builder: (context, child) {
             final mediaQueryData = MediaQuery.of(context);

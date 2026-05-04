@@ -6,6 +6,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:provider_project/controller/auth/auth_provider.dart';
 import 'package:provider_project/controller/home/home_provider.dart';
+import 'package:provider_project/controller/profile/profile_provider.dart';
 import 'package:provider_project/controller/splash/splash_provider.dart';
 import 'package:provider_project/l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -41,6 +42,9 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<HomeProvider>(
           create: (_) => HomeProvider(),
+        ),
+        ChangeNotifierProvider<ProfileProvider>(
+          create: (_) => ProfileProvider(),
         ),
       ],
       child: MaterialApp(

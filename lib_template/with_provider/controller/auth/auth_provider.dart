@@ -17,9 +17,7 @@ class AuthProvider with ChangeNotifier {
       final value = await AuthRepo.login(body: {});
       appPrint("login Response -> $value");
 
-      if (value?.statusState == "success") {
-        // TODO: Add your success logic here
-      }
+      if (value?.statusState == "success") {}
 
       _isLoading = false;
       notifyListeners();

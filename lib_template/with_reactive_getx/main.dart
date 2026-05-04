@@ -2,15 +2,17 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_with_reactive_getx/config/app_colors.dart';
-import 'package:flutter_with_reactive_getx/config/localization.dart';
-import 'package:flutter_with_reactive_getx/route/app_route.dart';
+import 'package:flutter_with_reactive_getx/core/localization/app_translations.dart';
+import 'package:flutter_with_reactive_getx/core/theme/app_theme.dart';
+import 'package:flutter_with_reactive_getx/core/utils/http_overrides.dart';
+import 'package:flutter_with_reactive_getx/routes/app_pages.dart';
+import 'package:flutter_with_reactive_getx/routes/app_routes.dart';
 import 'package:get/get_navigation/src/root/get_material_app.dart';
 import 'package:get_storage/get_storage.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  HttpOverrides.global = MyHttpOverrides();
+  HttpOverrides.global = DevHttpOverrides();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
@@ -18,8 +20,9 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-String languageCode = getStorage.read('languageCode') ?? 'en';
-String countryCode = getStorage.read('countryCode') ?? 'US';
+final GetStorage _storage = GetStorage();
+String languageCode = _storage.read('languageCode') ?? 'en';
+String countryCode = _storage.read('countryCode') ?? 'US';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -27,14 +30,14 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'Flutter Project Name',
+      title: 'Flutter Reactive MVVM',
       debugShowCheckedModeBanner: false,
-      translations: Localization(),
+      translations: AppTranslations(),
       locale: Locale(languageCode, countryCode),
       fallbackLocale: const Locale('en', 'US'),
-      theme: ThemeData(fontFamily: 'inter', useMaterial3: false),
-      initialRoute: AppRoutes.initialRoute,
-      getPages: AppRoutes.pages,
+      theme: AppTheme.lightTheme,
+      initialRoute: AppRoutes.splash,
+      getPages: AppPages.pages,
       builder: (context, child) {
         final mediaQueryData = MediaQuery.of(context);
         return MediaQuery(
@@ -51,14 +54,5 @@ class AppBehavior extends ScrollBehavior {
   Widget buildOverscrollIndicator(
       BuildContext context, Widget child, ScrollableDetails details) {
     return child;
-  }
-}
-
-class MyHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback =
-          (X509Certificate cert, String host, int port) => true;
   }
 }

@@ -14,11 +14,10 @@ class _SplashViewState extends State<SplashView> {
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     Future.microtask(() {
       final provider = Provider.of<SplashProvider>(context, listen: false);
-      provider.initializeApp(context); // or loadData(), fetch(), etc.
+      provider.initializeApp(context);
     });
   }
 

@@ -319,6 +319,31 @@ function createQualityFiles(projectPath) {
   }
 }
 
+function createStandardStructure(projectPath) {
+  const libPath = path.join(projectPath, 'lib');
+  const folders = [
+    'core/constants',
+    'core/localization',
+    'core/network',
+    'core/services',
+    'core/storage',
+    'core/theme',
+    'core/utils',
+    'core/widgets',
+    'data/models',
+    'data/providers',
+    'data/repositories',
+    'domain/entities',
+    'domain/repositories',
+    'modules/auth',
+    'modules/home',
+    'modules/profile',
+    'routes'
+  ];
+
+  folders.forEach((folder) => ensureDirectory(path.join(libPath, folder)));
+}
+
 async function promptForProjectDetails(defaults = {}) {
   let projectName = defaults.projectName || '';
 
@@ -419,7 +444,8 @@ class ${pascal}View extends StatelessWidget {
 
 function generateModule(targetLibPath, featureName) {
   const folderName = slugify(featureName);
-  const modulePath = path.join(targetLibPath, 'module', folderName);
+  const modulesRoot = fs.existsSync(path.join(targetLibPath, 'modules')) ? 'modules' : 'module';
+  const modulePath = path.join(targetLibPath, modulesRoot, folderName);
   ensureDirectory(modulePath);
   const viewPath = path.join(modulePath, `${folderName}_view.dart`);
   if (!fs.existsSync(viewPath)) {
@@ -430,7 +456,8 @@ function generateModule(targetLibPath, featureName) {
 
 function generateScreen(targetLibPath, screenName) {
   const folderName = slugify(screenName);
-  const viewFolderPath = path.join(targetLibPath, 'view', folderName);
+  const viewRoot = fs.existsSync(path.join(targetLibPath, 'modules')) ? 'modules' : 'view';
+  const viewFolderPath = path.join(targetLibPath, viewRoot, folderName);
   ensureDirectory(viewFolderPath);
   const viewPath = path.join(viewFolderPath, `${folderName}_view.dart`);
   if (!fs.existsSync(viewPath)) {
@@ -491,6 +518,7 @@ async function runInit(parsed) {
   if (!options.dryRun) {
     copyRecursive(templatePath, destLibPath);
     replacePackageImports(destLibPath, state.oldPackageName, projectName);
+    createStandardStructure(projectPath);
     ensureDirectory(path.join(projectPath, 'assets', 'images'));
     updatePubspec(path.join(projectPath, 'pubspec.yaml'));
     if (stateKey === 'provider') createL10nConfig(projectPath);
